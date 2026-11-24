@@ -45,9 +45,46 @@ function findActive(a, b) {
 
 // GET /api/friends/search?q=
 router.get("/search", async (req, res) => {
-  // TODO: find users whose username contains q, label each (You / Add Friend / Request Sent / Respond / Friends)
+  // Read search field text and store in lowercase.
+  const q = String(req.query.q ?? "")
+    .trim()
+    .toLowerCase();
+  if (!q) return res.json([]);
 
-  res.status(501).json({ error: "Not implemented" });
+  // Escape characters
+  const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // Find up to 20 users whose username contains the search text
+  const users = await User.find({
+    username: { $regex: safe },
+  })
+    .select("username")
+    .limit(20);
+
+  // Label each user based on their relationship to me
+  const results = await Promise.all(
+    users.map(async (user) => {
+      // Default: no relationship yet
+      let label = "Add Friend";
+
+      if (user._id.equals(req.userId)) {
+        // This result is me
+        label = "You";
+      } else {
+        // Check for a pending or accepted request in either direction
+        const rel = await findActive(req.userId, user._id);
+        if (rel?.status === "Accepted") label = "Friends";
+        // Pending: did I send it, or do I need to respond?
+        else if (rel)
+          label = rel.sender.equals(req.userId) ? "Request Sent" : "Respond";
+      }
+
+      return { id: user._id, username: user.username, label };
+    }),
+  );
+
+  // Return each user's id, username, and label
+  res.json(results);
 });
 
 // POST /api/friends/requests
@@ -112,7 +149,6 @@ router.put("/requests/:id/:action", async (req, res) => {
     return res.status(400).json({ error: "Invalid request id." });
   }
 
-  // TODO: accept/decline only by receiver, cancel only by sender, only while Pending; set respondedAt
   // Find the request (404)
   const request = await FriendRequest.findById(req.params.id);
   if (!request)
