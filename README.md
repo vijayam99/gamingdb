@@ -28,3 +28,11 @@ GamingDB uses a shared MongoDB Atlas database for development. Use test data bec
 6. Look for `Connected to MongoDB` in the terminal. Then open
    [http://127.0.0.1:5000/api/health](http://127.0.0.1:5000/api/health).
    You should see `{"status":"ok"}`.
+
+   
+      **macOS Terminal**
+
+   ```bash
+   cd backend
+   npm ci
+   ```
