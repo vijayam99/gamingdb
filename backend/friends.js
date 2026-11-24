@@ -53,23 +53,30 @@ router.get("/search", async (req, res) => {
 // POST /api/friends/requests
 router.post("/requests", async (req, res) => {
   // Require username (400)
-  const username = String(req.body?.username ?? "").trim().toLowerCase();
+  const username = String(req.body?.username ?? "")
+    .trim()
+    .toLowerCase();
   if (!username) return res.status(400).json({ error: "Enter a username." });
 
   // Missing user (404) or block yourself (400)
   const receiver = await User.findOne({ username });
-  if (!receiver) return res.status(404).json({ error: "No users found."});
+  if (!receiver) return res.status(404).json({ error: "No users found." });
   if (receiver._id.equals(req.userId)) {
     return res.status(400).json({ error: "You can't add yourself." });
   }
 
   // Existing request or friendship (409)
   if (await findActive(req.userId, receiver._id)) {
-    return res.status(409).json({ error: "Requested user is already pending or already friends." });
+    return res
+      .status(409)
+      .json({ error: "Requested user is already pending or already friends." });
   }
 
   // Create request (201)
-  const request = await FriendRequest.create({ sender: req.userId, receiver: receiver._id });
+  const request = await FriendRequest.create({
+    sender: req.userId,
+    receiver: receiver._id,
+  });
   res.status(201).json({ id: request._id, to: receiver.username });
 });
 
@@ -96,15 +103,49 @@ router.get("/requests", async (req, res) => {
 
 // PUT /api/friends/requests/:id/:action  (accept / decline / cancel)
 router.put("/requests/:id/:action", async (req, res) => {
+  // Only allow accept, decline, or cancel (400)
   if (!["accept", "decline", "cancel"].includes(req.params.action)) {
     return res.status(400).json({ error: "Unknown action." });
   }
+  // Reject ids that aren't valid ObjectIds (400)
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ error: "Invalid request id." });
   }
 
   // TODO: accept/decline only by receiver, cancel only by sender, only while Pending; set respondedAt
-  return res.status(501).json({ error: "Not implemented" });
+  // Find the request (404)
+  const request = await FriendRequest.findById(req.params.id);
+  if (!request)
+    return res.status(404).json({ error: "Friend request not found." });
+
+  // Only the sender can cancel
+  // Only the receiver can accept or decline (403)
+  const action = req.params.action;
+  const mustBe = action === "cancel" ? request.sender : request.receiver;
+  if (!mustBe.equals(req.userId)) {
+    return res.status(403).json({ error: "You can't change this request." });
+  }
+  // Only pending requests can be changed (400)
+  if (request.status !== "Pending") {
+    return res
+      .status(400)
+      .json({ error: "This request was already answered." });
+  }
+
+  // Map the action to its new status, record when it was answered, and save
+  const newStatus = {
+    accept: "Accepted",
+    decline: "Declined",
+    cancel: "Cancelled",
+  };
+  request.status = newStatus[action];
+
+  // set respondedAt
+  request.respondedAt = new Date();
+  await request.save();
+
+  // Return the updated request
+  res.json({ id: request._id, status: request.status });
 });
 
 // GET /api/friends
