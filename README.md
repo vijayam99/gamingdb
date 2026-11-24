@@ -4,20 +4,11 @@ GamingDB uses a shared MongoDB Atlas database for development. Use test data bec
 
 1. Ask Vijayam to add your current public IP to the GamingDB Atlas access list and create a database user for you with read/write access to `gamingdb`.
 2. Get your Atlas connection string and database credentials from Vijayam privately.
-3. From the `gamingdb` repo folder, install the backend dependencies.
-
-   Windows PowerShell:
+3. From the `gamingdb` repo folder, run these commands in Windows PowerShell:
 
    ```powershell
    cd backend
    npm.cmd ci
-   ```
-
-   macOS / Linux terminal:
-
-   ```bash
-   cd backend
-   npm ci
    ```
 
 4. Create a `backend/.env` file next to `index.js`. Add the connection string and replace `<db_password>` with your database user's password if the placeholder is present.
@@ -28,9 +19,9 @@ GamingDB uses a shared MongoDB Atlas database for development. Use test data bec
 
    Keep `.env` local. Never commit it or post the connection string in the group chat.
 
-5. From the `backend` folder, start the server. The command is the same on Windows, macOS, and Linux:
+5. From the `backend` folder, start the server:
 
-   ```bash
+   ```powershell
    node --env-file=.env index.js
    ```
 
