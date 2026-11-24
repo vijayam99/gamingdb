@@ -58,8 +58,23 @@ router.post("/requests", async (req, res) => {
 
 // GET /api/friends/requests
 router.get("/requests", async (req, res) => {
-  // TODO: return { incoming, sent } pending requests with usernames
-  res.status(501).json({ error: "Not implemented" });
+  // Get both pending incoming and sent requests with the other user's username
+  const [incoming, sent] = await Promise.all([
+    FriendRequest.find({ receiver: req.userId, status: "Pending" }).populate(
+      "sender",
+      "username",
+    ),
+    FriendRequest.find({ sender: req.userId, status: "Pending" }).populate(
+      "receiver",
+      "username",
+    ),
+  ]);
+
+  // Return only the request id and the other user's username for each list.
+  res.json({
+    incoming: incoming.map((r) => ({ id: r._id, from: r.sender.username })),
+    sent: sent.map((r) => ({ id: r._id, to: r.receiver.username })),
+  });
 });
 
 // PUT /api/friends/requests/:id/:action  (accept / decline / cancel)
@@ -81,26 +96,27 @@ router.get("/", async (req, res) => {
   // Populate/replace each sender and receiver userId with username field.
   const accepted = await FriendRequest.find({
     status: "Accepted",
-    $or: [
-      { sender: req.userId },
-      { receiver: req.userId },
-    ],
-  }).populate("sender receiver", "username")
+    $or: [{ sender: req.userId }, { receiver: req.userId }],
+  }).populate("sender receiver", "username");
 
   // For each accepted request, pick which one isn't the current user and add to friends.
-  const friends = []
+  const friends = [];
   for (const request of accepted) {
-    let friend
+    let friend;
     if (request.sender._id.equals(req.userId)) {
-      friend = request.receiver
+      friend = request.receiver;
     } else {
-      friend = request.sender
+      friend = request.sender;
     }
-    friends.push({ id: friend._id, username: friend.username, since: request.respondedAt })
+    friends.push({
+      id: friend._id,
+      username: friend.username,
+      since: request.respondedAt,
+    });
   }
 
   // return friends list
-  res.json(friends)
+  res.json(friends);
 });
 
 router.use((error, req, res, _next) => {
