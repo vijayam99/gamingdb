@@ -44,17 +44,21 @@ function findActive(a, b) {
 // Logged-in user's id is req.userId
 
 // GET /api/friends/search?q=
-router.get("/search", async (_req, res) => {
+router.get("/search", async (req, res) => {
+  // TODO: find users whose username contains q, label each (You / Add Friend / Request Sent / Respond / Friends)
+
   res.status(501).json({ error: "Not implemented" });
 });
 
 // POST /api/friends/requests
-router.post("/requests", async (_req, res) => {
+router.post("/requests", async (req, res) => {
+  // TODO: block self (400), missing user (404), existing request or friendship (409), then create (201)
   res.status(501).json({ error: "Not implemented" });
 });
 
 // GET /api/friends/requests
-router.get("/requests", async (_req, res) => {
+router.get("/requests", async (req, res) => {
+  // TODO: return { incoming, sent } pending requests with usernames
   res.status(501).json({ error: "Not implemented" });
 });
 
@@ -66,15 +70,40 @@ router.put("/requests/:id/:action", async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ error: "Invalid request id." });
   }
+
+  // TODO: accept/decline only by receiver, cancel only by sender, only while Pending; set respondedAt
   return res.status(501).json({ error: "Not implemented" });
 });
 
 // GET /api/friends
-router.get("/", async (_req, res) => {
-  res.status(501).json({ error: "Not implemented" });
+router.get("/", async (req, res) => {
+  // Find users who's status is Accepted AND (sender OR receiver).
+  // Populate/replace each sender and receiver userId with username field.
+  const accepted = await FriendRequest.find({
+    status: "Accepted",
+    $or: [
+      { sender: req.userId },
+      { receiver: req.userId },
+    ],
+  }).populate("sender receiver", "username")
+
+  // For each accepted request, pick which one isn't the current user and add to friends.
+  const friends = []
+  for (const request of accepted) {
+    let friend
+    if (request.sender._id.equals(req.userId)) {
+      friend = request.receiver
+    } else {
+      friend = request.sender
+    }
+    friends.push({ id: friend._id, username: friend.username, since: request.respondedAt })
+  }
+
+  // return friends list
+  res.json(friends)
 });
 
-router.use((error, _req, res, _next) => {
+router.use((error, req, res, _next) => {
   console.error("Friends request failed:", error.name, error.code ?? "");
   res
     .status(500)
