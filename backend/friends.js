@@ -52,8 +52,25 @@ router.get("/search", async (req, res) => {
 
 // POST /api/friends/requests
 router.post("/requests", async (req, res) => {
-  // TODO: block self (400), missing user (404), existing request or friendship (409), then create (201)
-  res.status(501).json({ error: "Not implemented" });
+  // Require username (400)
+  const username = String(req.body?.username ?? "").trim().toLowerCase();
+  if (!username) return res.status(400).json({ error: "Enter a username." });
+
+  // Missing user (404) or block yourself (400)
+  const receiver = await User.findOne({ username });
+  if (!receiver) return res.status(404).json({ error: "No users found."});
+  if (receiver._id.equals(req.userId)) {
+    return res.status(400).json({ error: "You can't add yourself." });
+  }
+
+  // Existing request or friendship (409)
+  if (await findActive(req.userId, receiver._id)) {
+    return res.status(409).json({ error: "Requested user is already pending or already friends." });
+  }
+
+  // Create request (201)
+  const request = await FriendRequest.create({ sender: req.userId, receiver: receiver._id });
+  res.status(201).json({ id: request._id, to: receiver.username });
 });
 
 // GET /api/friends/requests
