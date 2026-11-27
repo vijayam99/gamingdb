@@ -56,6 +56,15 @@ function readSessionId(req) {
   return cookie ? hashSessionToken(cookie[1]) : null
 }
 
+async function requireUser(req, res, next) {
+  const id = readSessionId(req)
+  const session = id && await Session.findOne({ _id: id, expiresAt: { $gt: new Date() } })
+  if (!session) return res.status(401).json({ error: 'Sign in to continue.' })
+
+  req.userId = session.user
+  return next()
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
@@ -150,12 +159,15 @@ app.use(authPaths, (error, _req, res, _next) => {
   return res.status(500).json({ error: 'Could not complete the request. Please try again.' })
 })
 
+const friends = require('./friends')
+app.use('/api/friends', express.json({ limit: '2kb' }), requireUser, friends.router)
+
 async function start() {
   await mongoose.connect(process.env.MONGODB_URI, {
     dbName: 'gamingdb',
     serverSelectionTimeoutMS: 10000,
   })
-  await Promise.all([User.init(), Session.init()])
+  await Promise.all([User.init(), Session.init(), friends.FriendRequest.init()])
 
   console.log('Connected to MongoDB')
 
