@@ -162,6 +162,9 @@ app.use(authPaths, (error, _req, res, _next) => {
 const friends = require('./friends')
 app.use('/api/friends', express.json({ limit: '2kb' }), requireUser, friends.router)
 
+// use steam api steam-route.js file
+app.use('/api/steam', requireUser, require('./steam-route'))
+
 async function start() {
   await mongoose.connect(process.env.MONGODB_URI, {
     dbName: 'gamingdb',
